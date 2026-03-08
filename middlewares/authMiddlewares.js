@@ -1,7 +1,7 @@
 const JWT = require('jsonwebtoken');
 const User = require('../models/User');
 
-// Middleware to protect routes
+// Middleware
 const authMiddleware = async (req, res, next) => {
     try {
       // get token from header
@@ -31,7 +31,7 @@ const authMiddleware = async (req, res, next) => {
 //allowed user role 
 const allowedToMiddleware = (...roles) => {
   
-  console.log(roles);
+  // console.log(roles);
   return (req, res, next) => {
     if (!roles.includes(req.user.role)) {
       return res.status(403).json({ 

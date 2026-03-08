@@ -4,7 +4,8 @@ const { registerUser, loginUser, getMe } = require('../controllers/userControlle
 const { authMiddleware, allowedToMiddleware } = require('../middlewares/authMiddlewares');
 //for validation
 const validate = require('../middlewares/validationMiddleware');
-const { registerSchema, loginSchema } = require('../validations/authValidation');
+const { registerSchema } = require('../validations/registerValidationSchema');
+const { loginSchema } = require('../validations/loginValidationSchema');
 
 router.post("/register", validate(registerSchema), registerUser);
 router.post("/login", validate(loginSchema), loginUser);
