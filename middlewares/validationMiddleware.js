@@ -7,10 +7,10 @@ const validate = (schema) => {
 
         if (error) {
             return res.status(400).json({ 
-                msg: error.details[0].message, 
-                data: value 
+                msg: error.details.map(err=>err.message), 
             });
         }   
+        req.body = value;
         next();
     }
 }

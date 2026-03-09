@@ -25,7 +25,6 @@ const registerUser = async (req, res) => {
             msg: "User created successfully",
             success: true,
             data: user,
-            token: generateToken(user._id),
         })
 
     }
