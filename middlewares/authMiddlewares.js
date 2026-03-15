@@ -10,6 +10,7 @@ const authMiddleware = async (req, res, next) => {
             return res.status(401).json({ msg: "no token" })
         }
         //split token
+        
         const token = authHeader.split(' ')[1];
         //verify token
         const decoded = JWT.verify(token, process.env.JWT_SECRET);
@@ -24,8 +25,10 @@ const authMiddleware = async (req, res, next) => {
         next();
     }
     catch (err) {
-        console.log(err);
-        res.status(500).json({ msg: "Server error" })
+
+  console.log(err);
+  return res.status(401).json({ msg: "Invalid token" });
+
     }
 }
 //allowed user role 

@@ -32,8 +32,7 @@ const bookSchema = new mongoose.Schema({
         min: 0
     },
     coverImage: String,
-   // publishedYear: Number
-
+ 
 
 
 

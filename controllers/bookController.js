@@ -5,23 +5,23 @@ const generateToken = require('../utils/generateToken');
 //create book
 const createBook = async (req, res) => {
     try {
-        //get data from request body
-        const { title, author, genre, description, availableCopies, coverImage } = req.body;
-        if (!title || !author || !genre || !coverImage || !availableCopies) {
-            return res.status(400).json({ msg: "missing data" });
+        //get data
+        const { title, author, genre, description, totalCopies, coverImage } = req.body;
+        //check if all data in req
+        if (!title || !author || !genre || !coverImage || totalCopies == null) {
+            return res.status(400).json({ msg: "Missing required data" });
         }
-        //chesck if user is admin
-        const user = await User.findById(req.user._id);
-        if (user.role !== "admin") {
-            res.status(403).json({ msg: "you are not authorized to create abook" });
-        }
-        //create book 
+        //if availableCopies not passed get the value from totalCopies
+        const availableCopies = req.body.availableCopies ?? totalCopies;
+
+        //create the book
         const book = await Book.create({
             title,
             author,
             genre,
             description,
             totalCopies,
+            availableCopies,
             coverImage,
         });
         //response
@@ -29,26 +29,17 @@ const createBook = async (req, res) => {
             success: true,
             msg: "Book created successfully",
             data: book,
-
-        })
-
-    }
-    catch (err) {
-        console.log(err);
+        });
+    } catch (err) {
+        console.error(err);
         res.status(500).json({ msg: "Server error" });
     }
-
-}
+};
 //update book
 const updateBook = async (req, res) => {
     try {
         const { id } = req.params;
         const { title, author, genre, description, totalCopies, availableCopies, coverImage } = req.body;
-        //check if user is admin
-        const user = await User.findById(req.user._id);
-        if (user.role !== "admin") {
-            res.status(403).json({ msg: "you are not authorized to update a book" });
-        }
         //update book
         const book = await Book.findByIdAndUpdate(id, {
             title,
@@ -75,58 +66,51 @@ const updateBook = async (req, res) => {
     }
 }
 //delete book
-const deleteBook=async(req,res)=>{
-    try{
-        const {id}=req.params;
-        //check if user is admin
-        const user = await User.findById(req.user._id);
-        if (user.role !== "admin") {
-            return res.status(403).json({ msg: "you are not authorized to delete a book" });
+const deleteBook = async (req, res) => {
+    try {
+        const { id } = req.params;
+        //delete book
+        const deletedBook = await Book.findByIdAndDelete(id);
+        if (!deletedBook) {
+            return res.status(404).json({ msg: "Book not found" });
         }
-   //delete book
-   const deletedBook=await Book.findByIdAndDelete(id);
-   if(!deletedBook){
-    return res.status(404).json({ msg: "Book not found" });
-   }
-    //response
-    res.status(200).json({
-        success: true,
-        msg: "Book deleted successfully",   
-    });
+        //response
+        res.status(200).json({
+            success: true,
+            msg: "Book deleted successfully",
+        });
     }
-    catch(err){
+    catch (err) {
         console.log(err);
         res.status(500).json({ msg: "Server error" });
-    }   
+    }
 }
 
 //get all books
-const getAllBooks=async(req,res)=>{
-    try{
-       
-        const limit=req.query.limit||10;
-         const books =await Book.find().limit(limit);
-         //response
-        res.status(200).json({
-            success: true,
-            data: books
-        });
+const getAllBooks = async (req, res) => {
+    try {
 
-        if(books.length===0){
+        const limit = parseInt(req.query.limit) || 10;
+        const page = parseInt(req.query.page) || 1;
+        const skip = (page - 1) * limit
+        const books = await Book.find().limit(limit).skip(skip);
+        if (books.length === 0) {
             return res.status(404).json({ msg: "No books found" });
         }
+        //response
+        res.status(200).json({ success: true, data: books });
     }
-    catch(err){
+    catch (err) {
         console.log(err);
         res.status(500).json({ msg: "Server error" });
     }
 }
 //get book by id
-const getBookById=async(req,res)=>{
-    try{
-        const {_id}=req.params;
-        const book=await Book.findById(_id);
-        if(!book){
+const getBookById = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const book = await Book.findById(id);
+        if (!book) {
             return res.status(404).json({ msg: "Book not found" });
         }
         res.status(200).json({
@@ -134,49 +118,64 @@ const getBookById=async(req,res)=>{
             data: book
         });
     }
-    catch(err){
+    catch (err) {
         console.log(err);
         res.status(500).json({ msg: "Server error" });
     }
 }
 //search books
 const searchBooks = async (req, res) => {
-  try {
-    const { search, title, author, genre} = req.query;
-//filtering
-    const filter = {};
-//sarch in title, author, genre whith regex
-    if (search) {
-      const regex = new RegExp(search, "i");
-      filter.$or = [
-        { title: regex },
-        { author: regex },
-        { genre: regex },
-      ];
-    }
-//filter by title, author, genre if user added them in query
-    if (title) filter.title = title;
-    if (author) filter.author = author;
-    if (genre) filter.genre = genre;
+    try {
+        const { search, title, author, genre } = req.query;
+        const limit = parseInt(req.query.limit) || 5;
+        const page = parseInt(req.query.page) || 1;
+        const skip = (page - 1) * limit;
 
-//search books with filter and pagination
-    const books = await Book.find(filter);
-//if no books found
-    if (books.length === 0) {
-      return res.status(404).json({ msg: "No books found" });
-    }
-//response
-    res.status(200).json({
-      success: true,
-      data: books,
-    });
+        const filter = {};
 
-    }
-    catch(err){
+        if (search) {
+            const regex = new RegExp(search, "i");
+            filter.$or = [
+                { title: regex },
+                { author: regex },
+                { genre: regex },
+            ];
+        }
+
+        if (title) filter.title = title;
+        if (author) filter.author = author;
+        if (genre) filter.genre = genre;
+
+        const totalBooks = await Book.countDocuments(filter);
+
+        const books = await Book.find(filter)
+            .limit(limit)
+            .skip(skip)
+            .sort({ createdAt: -1 });
+        if (books.length === 0) {
+            return res.status(404).json({
+                success: true,
+                msg: "No books found",
+                data: []
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            data: books,
+            pagination: {
+                currentPage: page,
+                totalPages: Math.ceil(totalBooks / limit),
+                totalBooks: totalBooks,
+                booksInPage: books.length,
+            }
+        });
+
+    } catch (err) {
         console.log(err);
         res.status(500).json({ msg: "Server error" });
     }
-}
+};
 module.exports = {
     createBook,
     updateBook,

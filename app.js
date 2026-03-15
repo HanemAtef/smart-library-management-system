@@ -11,9 +11,9 @@ connectDB();
 
 //routes
 const userRoutes=require("./routes/userRoutes");
-
+const bookRoutes=require("./routes/bookRoutes")
 app.use("/api/users",userRoutes);
-
+app.use("/api/books",bookRoutes)
 //listening to the server
 app.listen(port,()=>{
     console.log(`Server is running on port ${port}`); 
