@@ -127,31 +127,40 @@ const getBookById = async (req, res) => {
 const searchBooks = async (req, res) => {
     try {
         const { search, title, author, genre } = req.query;
+
         const limit = parseInt(req.query.limit) || 5;
         const page = parseInt(req.query.page) || 1;
         const skip = (page - 1) * limit;
 
-        const filter = {};
+        let filter = {};
 
+        /*  Text Search */
         if (search) {
-            const regex = new RegExp(search, "i");
-            filter.$or = [
-                { title: regex },
-                { author: regex },
-                { genre: regex },
-            ];
+            filter.$text = { $search: search };
         }
+    
 
+        /*  Filters */
         if (title) filter.title = title;
         if (author) filter.author = author;
         if (genre) filter.genre = genre;
 
+        /* Count */
         const totalBooks = await Book.countDocuments(filter);
 
-        const books = await Book.find(filter)
-            .limit(limit)
-            .skip(skip)
-            .sort({ createdAt: -1 });
+        /*Query */
+        let query = Book.find(filter);
+
+        if (search) {
+            query = query
+                .select({ score: { $meta: "textScore" } })
+                .sort({ score: { $meta: "textScore" } });
+        } else {
+            query = query.sort({ createdAt: -1 });
+        }
+
+        const books = await query.limit(limit).skip(skip);
+
         if (books.length === 0) {
             return res.status(404).json({
                 success: true,
@@ -166,7 +175,7 @@ const searchBooks = async (req, res) => {
             pagination: {
                 currentPage: page,
                 totalPages: Math.ceil(totalBooks / limit),
-                totalBooks: totalBooks,
+                totalBooks,
                 booksInPage: books.length,
             }
         });
