@@ -1,12 +1,13 @@
+const { options } = require('joi');
 const Book = require('../models/Book');
 const User = require('../models/User');
 const bcrypt = require('bcrypt');
-const generateToken = require('../utils/generateToken');
 //create book
 const createBook = async (req, res) => {
     try {
         //get data
-        const { title, author, genre, description, totalCopies, coverImage } = req.body;
+        const { title, author, genre, description, totalCopies } = req.body;
+          const coverImage = req.file?.filename;
         //check if all data in req
         if (!title || !author || !genre || !coverImage || totalCopies == null) {
             return res.status(400).json({ msg: "Missing required data" });
@@ -88,23 +89,39 @@ const deleteBook = async (req, res) => {
 
 //get all books
 const getAllBooks = async (req, res) => {
-    try {
+  try {
+    let page = parseInt(req.query.page) || 1;
+    let limit = parseInt(req.query.limit) || 10;
 
-        const limit = parseInt(req.query.limit) || 10;
-        const page = parseInt(req.query.page) || 1;
-        const skip = (page - 1) * limit
-        const books = await Book.find().limit(limit).skip(skip);
-        if (books.length === 0) {
-            return res.status(404).json({ msg: "No books found" });
-        }
-        //response
-        res.status(200).json({ success: true, data: books });
-    }
-    catch (err) {
-        console.log(err);
-        res.status(500).json({ msg: "Server error" });
-    }
-}
+    if (page < 1) page = 1;
+    if (limit < 1) limit = 10;
+
+    const skip = (page - 1) * limit;
+
+    const books = await Book.find()
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .skip(skip)
+
+    const total = await Book.countDocuments();
+
+    res.status(200).json({
+      success: true,
+      msg: books.length ? "Books fetched successfully" : "No books yet",
+      data: books,
+      pagination: {
+        currentPage: page,
+        totalPages: Math.ceil(total / limit),
+        totalBooks: total,
+        booksInPage: books.length,
+      },
+    });
+
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ msg: "Server error" });
+  }
+};
 //get book by id
 const getBookById = async (req, res) => {
     try {
@@ -125,65 +142,50 @@ const getBookById = async (req, res) => {
 }
 //search books
 const searchBooks = async (req, res) => {
-    try {
-        const { search, title, author, genre } = req.query;
+  try {
+    const { search, title, author, genre } = req.query;
 
-        const limit = parseInt(req.query.limit) || 5;
-        const page = parseInt(req.query.page) || 1;
-        const skip = (page - 1) * limit;
+    const page = parseInt(req.query.page);
+    const limit = parseInt(req.query.limit);
+    const skip = (page - 1) * limit;
 
-        let filter = {};
+    let filter = {};
 
-        /*  Text Search */
-        if (search) {
-            filter.$text = { $search: search };
-        }
-    
+    if (search) filter.$text = { $search: search };
+    if (title) filter.title = { $regex: title, $options: "i" };
+    if (author) filter.author = { $regex: author, $options: "i" };
+    if (genre) filter.genre = { $regex: genre, $options: "i" };
 
-        /*  Filters */
-        if (title) filter.title = title;
-        if (author) filter.author = author;
-        if (genre) filter.genre = genre;
+    const totalBooks = await Book.countDocuments(filter);
 
-        /* Count */
-        const totalBooks = await Book.countDocuments(filter);
+    let query = Book.find(filter);
 
-        /*Query */
-        let query = Book.find(filter);
-
-        if (search) {
-            query = query
-                .select({ score: { $meta: "textScore" } })
-                .sort({ score: { $meta: "textScore" } });
-        } else {
-            query = query.sort({ createdAt: -1 });
-        }
-
-        const books = await query.limit(limit).skip(skip);
-
-        if (books.length === 0) {
-            return res.status(404).json({
-                success: true,
-                msg: "No books found",
-                data: []
-            });
-        }
-
-        res.status(200).json({
-            success: true,
-            data: books,
-            pagination: {
-                currentPage: page,
-                totalPages: Math.ceil(totalBooks / limit),
-                totalBooks,
-                booksInPage: books.length,
-            }
-        });
-
-    } catch (err) {
-        console.log(err);
-        res.status(500).json({ msg: "Server error" });
+    if (search) {
+      query = query
+        .select({ title: 1, author: 1, genre: 1, coverImage: 1, score: { $meta: "textScore" } })
+        .sort({ score: { $meta: "textScore" } });
+    } else {
+      query = query.sort({ createdAt: -1 });
     }
+
+    const books = await query.limit(limit).skip(skip);
+
+    res.status(200).json({
+      success: true,
+      msg: books.length ? "Books found" : "No books found",
+      data: books,
+      pagination: {
+        currentPage: page,
+        totalPages: Math.ceil(totalBooks / limit),
+        totalBooks,
+        booksInPage: books.length,
+      }
+    });
+
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ msg: "Server error" });
+  }
 };
 module.exports = {
     createBook,

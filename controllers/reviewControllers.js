@@ -76,7 +76,7 @@ const updateReview = async (req, res) => {
       });
     }
 
-    //
+    //check the role
     if (review.user.toString() !== userId.toString()) {
       return res.status(403).json({
         success: false,
@@ -118,7 +118,7 @@ const deleteReview = async (req, res) => {
   try {
     const { reviewId } = req.params;
     const userId = req.user._id;
-const userRole = req.user.role;
+    const userRole = req.user.role;
     const review = await Review.findById(reviewId);
     if (!review) {
       return res.status(404).json({

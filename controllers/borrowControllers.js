@@ -18,6 +18,19 @@ const borrowBook = async (req, res) => {
         .status(400)
         .json({ success: false, msg: "No copies available" });
     }
+  //user can not borrow same book at the same time
+      const alreadyBorrowed = await Borrow.findOne({
+      user: userId,
+      book: bookId,
+      returnDate: null,  
+    });
+    
+    if (alreadyBorrowed) {
+      return res.status(400).json({
+        success: false,
+        msg: "You have already borrowed this book. Return it first.",
+      });
+    }
     //check for user extreem the limit of borrows
     const user = await User.findById(userId);
     const activeBorrows = await Borrow.countDocuments({
@@ -42,12 +55,11 @@ const borrowBook = async (req, res) => {
         msg: "You have unpaid fines. Please pay them first.",
       });
     }
-
     //decrease the copies
     const updatedBook = await Book.findOneAndUpdate(
       { _id: bookId, availableCopies: { $gt: 0 } },
       { $inc: { availableCopies: -1 } },
-      { returnDocument: 'after' }
+      { new: true }
     );
     if (!updatedBook) {
       return res.status(400).json({
@@ -194,7 +206,7 @@ const returnBook = async (req, res) => {
     if (today > borrow.dueDate) {
       const differ = today - borrow.dueDate;
       daysOverdue = Math.ceil(differ / (1000 * 60 * 60 * 24));
-      fine = daysOverdue * 5;
+      fine = daysOverdue * 5;//the day in fine with 5 
     }
     //update status
     borrow.returnDate = today;
@@ -206,7 +218,7 @@ const returnBook = async (req, res) => {
     const book = await Book.findByIdAndUpdate(
       borrow.book,
       { $inc: { availableCopies: 1 } },
-      { returnDocument: 'after' }
+      { new: true }
     );
     //response
     res.status(200).json({
@@ -290,35 +302,43 @@ const getAllOverdue = async (req, res) => {
 const finePaid = async (req, res) => {
   try {
     const { borrowId } = req.params;
+
     const borrow = await Borrow.findById(borrowId);
-    //check if not exist
+
     if (!borrow) {
       return res.status(404).json({
         success: false,
         msg: "Borrow record not found",
       });
     }
-    //check if there is a fine
-    if (borrow.fine === 0) {
+
+    if (!borrow.fine || borrow.fine <= 0) {
       return res.status(400).json({
         success: false,
         msg: "No fine to pay",
       });
     }
-    //check if it paid
+
     if (borrow.finePaid) {
       return res.status(400).json({
         success: false,
         msg: "Fine already paid",
       });
     }
-    //update
+
+    if (!borrow.returnDate) {
+      return res.status(400).json({
+        success: false,
+        msg: "Return the book before paying the fine",
+      });
+    }
+
     borrow.finePaid = true;
     await borrow.save();
-    //res
+
     res.status(200).json({
       success: true,
-      msg: `Fine of ${borrow.fine} EGP paid successfully`,
+      msg: `Fine of ${borrow.fine} EGP has been paid successfully`,
       data: {
         _id: borrow._id,
         fine: borrow.fine,

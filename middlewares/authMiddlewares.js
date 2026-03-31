@@ -6,7 +6,7 @@ const authMiddleware = async (req, res, next) => {
     try {
       // get token from header
         const authHeader = req.headers.authorization;
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        if (!authHeader) {
             return res.status(401).json({ msg: "no token" })
         }
         //split token

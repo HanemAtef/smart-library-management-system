@@ -16,17 +16,12 @@ const {
 
 router.get("/:bookId", getBookReviews);
 
-router.post(
-  "/:bookId",
-  authMiddleware,
-  validate(addReviewSchema),
-  addReview,
-);
+router.post("/:bookId", authMiddleware, validate(addReviewSchema), addReview);
 
 router.put(
   "/:reviewId",
   authMiddleware,
-  validate(updateReviewSchema), 
+  validate(updateReviewSchema),
   updateReview,
 );
 
